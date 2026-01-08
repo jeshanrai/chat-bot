@@ -1,8 +1,17 @@
 import fetch from 'node-fetch';
 import { momoImages } from '../assets/momoImages.js';
 
-// Send an image message with optional caption
+function logFinalResponse(to, type, content) {
+  console.log('\n✅ [FINAL RESPONSE MESSAGE]');
+  console.log(`🎯 User ID: ${to}`);
+  console.log(`📝 Type: ${type}`);
+  console.log(`📤 Content: ${content}`);
+  console.log('━'.repeat(50));
+}
+
 export async function sendWhatsAppImageMessage(to, imageUrl, caption) {
+  logFinalResponse(to, 'Image', caption ? `[Image] ${caption}` : '[Image]');
+
   const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
   const accessToken = process.env.WHATSAPP_ACCESS_TOKEN;
 
@@ -52,6 +61,8 @@ export async function sendWhatsAppImageMessage(to, imageUrl, caption) {
 
 // Send interactive button message
 export async function sendWhatsAppButtonMessage(to, headerText, bodyText, footerText, buttons) {
+  logFinalResponse(to, 'Button Message', `${headerText ? `[Header: ${headerText}]\n` : ''}${bodyText}\n[Buttons: ${buttons.map(b => b.reply.title).join(', ')}]`);
+
   const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
   const accessToken = process.env.WHATSAPP_ACCESS_TOKEN;
 
@@ -142,6 +153,8 @@ export async function sendOrderConfirmationMessage(to, orderDetails) {
 }
 
 export async function sendWhatsAppCarouselMessage(to, bodyText, cards) {
+  logFinalResponse(to, 'Carousel Message', bodyText);
+
   const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
   const accessToken = process.env.WHATSAPP_ACCESS_TOKEN;
 
@@ -195,6 +208,8 @@ export async function sendWhatsAppCarouselMessage(to, bodyText, cards) {
 }
 
 export async function sendWhatsAppListMessage(to, header, body, footer, buttonText, sections) {
+  logFinalResponse(to, 'List Message', `${header ? `[Header: ${header}]\n` : ''}${body}\n[Button: ${buttonText}]`);
+
   const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
   const accessToken = process.env.WHATSAPP_ACCESS_TOKEN;
 
@@ -256,6 +271,8 @@ export async function sendWhatsAppListMessage(to, header, body, footer, buttonTe
 }
 
 export async function sendWhatsAppMessage(to, text) {
+  logFinalResponse(to, 'Text Message', text);
+
   const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
   const accessToken = process.env.WHATSAPP_ACCESS_TOKEN;
 
@@ -265,7 +282,7 @@ export async function sendWhatsAppMessage(to, text) {
   }
 
   const url = `https://graph.facebook.com/v20.0/${phoneNumberId}/messages`;
-  
+
   const payload = {
     messaging_product: 'whatsapp',
     to: to,

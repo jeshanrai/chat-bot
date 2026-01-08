@@ -1,4 +1,6 @@
 import { detectIntentAndRespond } from '../ai/intentEngine.js';
+import { validateToolCall } from '../ai/validator.js';
+import { generateToolResponse } from '../ai/responseGenerator.js';
 import {
   sendWhatsAppMessage,
   sendWhatsAppListMessage,
@@ -15,7 +17,7 @@ const toolHandlers = {
     try {
       // Fetch categories from database
       const categories = await restaurantTools.getMenu();
-      
+
       const categoryEmojis = {
         'momos': '🥟',
         'noodles': '🍜',
@@ -49,8 +51,8 @@ const toolHandlers = {
 
       return {
         reply: null,
-        updatedContext: { 
-          ...context, 
+        updatedContext: {
+          ...context,
           stage: 'viewing_menu',
           lastAction: 'show_food_menu'
         }
@@ -108,8 +110,8 @@ const toolHandlers = {
 
       return {
         reply: null,
-        updatedContext: { 
-          ...context, 
+        updatedContext: {
+          ...context,
           stage: 'viewing_items',
           currentCategory: category,
           lastAction: 'show_category_items',
@@ -137,7 +139,7 @@ const toolHandlers = {
 
       // Get food details from database
       const food = await restaurantTools.getFoodById(foodId);
-      
+
       if (!food) {
         await sendWhatsAppMessage(userId, "Sorry, that item is not available.");
         return { reply: null, updatedContext: context };
@@ -195,8 +197,8 @@ const toolHandlers = {
 
       return {
         reply: null,
-        updatedContext: { 
-          ...context, 
+        updatedContext: {
+          ...context,
           cart,
           stage: 'quick_cart_action',
           lastAddedItem: food.name,
@@ -237,7 +239,7 @@ const toolHandlers = {
       if (matchingItems.length === 1) {
         // Exact match - add directly
         const food = matchingItems[0];
-        
+
         const existingItem = cart.find(item => item.foodId === food.id);
         if (existingItem) {
           existingItem.quantity += quantity;
@@ -287,8 +289,8 @@ const toolHandlers = {
 
         return {
           reply: null,
-          updatedContext: { 
-            ...context, 
+          updatedContext: {
+            ...context,
             cart,
             stage: 'quick_cart_action',
             lastAddedItem: food.name,
@@ -315,8 +317,8 @@ const toolHandlers = {
 
       return {
         reply: null,
-        updatedContext: { 
-          ...context, 
+        updatedContext: {
+          ...context,
           stage: 'selecting_item',
           lastAction: 'add_item_by_name'
         }
@@ -331,13 +333,13 @@ const toolHandlers = {
   // Show cart and checkout options
   show_cart_options: async (args, userId, context) => {
     const cart = context.cart || [];
-    
+
     if (cart.length === 0) {
       await sendWhatsAppMessage(userId, "Your cart is empty! Let me show you our menu.");
       return await toolHandlers.show_food_menu({}, userId, context);
     }
 
-    const cartLines = cart.map(item => 
+    const cartLines = cart.map(item =>
       `• ${item.name} x${item.quantity} - Rs.${item.price * item.quantity}`
     ).join('\n');
     const total = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
@@ -379,8 +381,9 @@ const toolHandlers = {
 
   // Confirm order with payment options
   confirm_order: async (args, userId, context) => {
-    let items = args.items || context.cart || [];
-    
+    const safeArgs = args || {};
+    let items = safeArgs.items || context.cart || [];
+
     if (items.length === 0) {
       await sendWhatsAppMessage(userId, "Your cart is empty! Let me show you our menu.");
       return await toolHandlers.show_food_menu({}, userId, context);
@@ -447,7 +450,7 @@ const toolHandlers = {
     // Use validated items
     items = validatedItems;
 
-    const orderLines = items.map(item => 
+    const orderLines = items.map(item =>
       `• ${item.name} x${item.quantity} - Rs.${item.price * item.quantity}`
     ).join('\n');
 
@@ -458,8 +461,8 @@ const toolHandlers = {
 
     return {
       reply: null,
-      updatedContext: { 
-        ...context, 
+      updatedContext: {
+        ...context,
         cart: items, // Update cart with validated items
         stage: 'confirming_order',
         lastAction: 'confirm_order',
@@ -520,11 +523,11 @@ const toolHandlers = {
           await restaurantTools.addItem(order.id, item.foodId, item.quantity);
         }
 
-        // Show payment options
-        return await toolHandlers.show_payment_options({}, userId, {
+        // Ask for service type instead of payment
+        return await toolHandlers.select_service_type({}, userId, {
           ...context,
           orderId: order.id,
-          stage: 'selecting_payment'
+          stage: 'selecting_service'
         });
       } catch (error) {
         console.error('Error creating order:', error);
@@ -536,7 +539,7 @@ const toolHandlers = {
         );
         return {
           reply: null,
-          updatedContext: { 
+          updatedContext: {
             stage: 'order_complete',
             lastAction: 'order_confirmed',
             cart: []
@@ -547,14 +550,14 @@ const toolHandlers = {
       // User confirmed cancellation
       const cart = context.cart || [];
       const itemCount = cart.reduce((sum, item) => sum + item.quantity, 0);
-      
+
       await sendWhatsAppMessage(
         userId,
         `❌ Order Cancelled\n\n${itemCount} item(s) removed from cart.\n\nNo worries! Feel free to browse our menu again whenever you're ready.\n\nType "menu" to start a new order! 🍽️`
       );
       return {
         reply: null,
-        updatedContext: { 
+        updatedContext: {
           stage: 'initial',
           lastAction: 'order_cancelled',
           cart: []
@@ -593,13 +596,102 @@ const toolHandlers = {
 
       return {
         reply: null,
-        updatedContext: { 
+        updatedContext: {
           ...context,
           stage: 'confirming_cancel',
           lastAction: 'ask_cancel_confirmation'
         }
       };
     }
+  },
+
+  // Select Service Type (Dine-in vs Delivery)
+  select_service_type: async (args, userId, context) => {
+    const type = args.type || args.serviceType;
+
+    // Phase 1: Ask user to select
+    if (!type) {
+      const buttons = [
+        {
+          type: 'reply',
+          reply: {
+            id: 'service_dine_in',
+            title: 'Dine-in 🍽️'
+          }
+        },
+        {
+          type: 'reply',
+          reply: {
+            id: 'service_delivery',
+            title: 'Delivery 🛵'
+          }
+        }
+      ];
+
+      await sendWhatsAppButtonMessage(
+        userId,
+        '🍽️ Service Type',
+        'Would you like to Dine-in or have it Delivered?',
+        'Please select one',
+        buttons
+      );
+
+      return {
+        reply: null,
+        updatedContext: {
+          ...context,
+          stage: 'selecting_service',
+          lastAction: 'ask_service_type'
+        }
+      };
+    }
+
+    // Phase 2: Handle Selection
+    if (type === 'dine_in') {
+      // For dine-in, go straight to payment
+      return await toolHandlers.show_payment_options({}, userId, {
+        ...context,
+        serviceType: 'dine_in',
+        deliveryAddress: "Dine-in"
+      });
+    } else if (type === 'delivery') {
+      // For delivery, ask for address
+      await sendWhatsAppMessage(
+        userId,
+        `📍 *Delivery Location*\n\nPlease type your delivery address/location so we can bring your food to you! 🏠`
+      );
+
+      return {
+        reply: null,
+        updatedContext: {
+          ...context,
+          serviceType: 'delivery',
+          stage: 'providing_location',
+          lastAction: 'ask_location'
+        }
+      };
+    }
+  },
+
+  // Handle Delivery Location Input
+  provide_location: async (args, userId, context) => {
+    const address = args.address;
+
+    if (!address) {
+      await sendWhatsAppMessage(userId, "Please provide a valid delivery address.");
+      return { reply: null, updatedContext: context };
+    }
+
+    // Confirm address and proceed to payment
+    await sendWhatsAppMessage(
+      userId,
+      `✅ Delivery address set to: *${address}*`
+    );
+
+    return await toolHandlers.show_payment_options({}, userId, {
+      ...context,
+      deliveryAddress: address
+    });
   },
 
   // Process payment selection - saves to DATABASE
@@ -655,7 +747,7 @@ const toolHandlers = {
 
       return {
         reply: null,
-        updatedContext: { 
+        updatedContext: {
           stage: 'order_complete',
           lastAction: 'order_confirmed',
           paymentMethod: method,
@@ -686,7 +778,7 @@ const toolHandlers = {
       }
 
       let historyText = `📋 *Your Order History*\n\n`;
-      
+
       for (const order of orders) {
         const statusEmoji = {
           'created': '🆕',
@@ -708,20 +800,77 @@ const toolHandlers = {
         historyText += `   📅 ${date}\n`;
         historyText += `   🛒 ${order.item_count} item(s) | Rs.${parseFloat(order.total).toFixed(0)}\n`;
         historyText += `   💳 ${order.payment_method || 'Pending'}\n`;
-        historyText += `   Status: ${order.status.toUpperCase()}\n\n`;
       }
-
-      historyText += `\nType "menu" to place a new order! 🍽️`;
 
       await sendWhatsAppMessage(userId, historyText);
 
       return {
         reply: null,
-        updatedContext: { ...context, lastAction: 'show_order_history' }
+        updatedContext: {
+          ...context,
+          lastAction: 'show_order_history'
+        }
       };
+
     } catch (error) {
       console.error('Error fetching order history:', error);
-      await sendWhatsAppMessage(userId, "Sorry, couldn't load your order history. Please try again.");
+      await sendWhatsAppMessage(userId, "Sorry, I couldn't check your order history right now.");
+      return { reply: null, updatedContext: context };
+    }
+  },
+
+  // Recommend Food
+  recommend_food: async (args, userId, context) => {
+    try {
+      const safeArgs = args || {};
+      const tag = safeArgs.tag || 'random';
+      console.log(`Getting recommendations for tag: ${tag}`);
+
+      const foods = await restaurantTools.getRecommendedFoods(tag);
+
+      if (foods.length === 0) {
+        await sendWhatsAppMessage(
+          userId,
+          `🤔 I couldn't find any specific items for "${tag}", but we have lots of other delicious options!\n\nType "menu" to see our full range. 🍽️`
+        );
+        return { reply: null, updatedContext: context };
+      }
+
+      // Format as list
+      const rows = foods.map(food => ({
+        id: `add_${food.id}`,
+        title: food.name.substring(0, 24),
+        description: `Rs.${food.price} - ${food.category}`
+      }));
+
+      // Different title for random
+      const isRandom = tag === 'random';
+      const title = isRandom ? '🎲 Chef\'s Choice' : `🌟 Recommendations: "${tag}"`;
+
+      // Dynamic Body using LLM
+      const body = await generateToolResponse('recommend_food', { tag }, foods, context);
+
+      await sendWhatsAppListMessage(
+        userId,
+        title,
+        body,
+        'Tap to add to cart',
+        'View Recommendations',
+        [{ title: 'Recommended', rows }]
+      );
+
+      return {
+        reply: null,
+        updatedContext: {
+          ...context,
+          stage: 'viewing_recommendations',
+          lastAction: 'recommend_food'
+        }
+      };
+
+    } catch (error) {
+      console.error('Error getting recommendations:', error);
+      await sendWhatsAppMessage(userId, "Sorry, I'm having trouble getting recommendations right now.");
       return { reply: null, updatedContext: context };
     }
   },
@@ -797,6 +946,14 @@ async function routeIntent({ text, context, userId, interactiveReply }) {
       return await toolHandlers.show_food_menu({}, userId, context);
     }
 
+    // Service type selection
+    if (id === 'service_dine_in') {
+      return await toolHandlers.select_service_type({ type: 'dine_in' }, userId, context);
+    }
+    if (id === 'service_delivery') {
+      return await toolHandlers.select_service_type({ type: 'delivery' }, userId, context);
+    }
+
     // User wants to checkout
     if (id === 'proceed_checkout') {
       return await toolHandlers.confirm_order({ items: context.cart }, userId, context);
@@ -836,13 +993,25 @@ async function routeIntent({ text, context, userId, interactiveReply }) {
   // Use LLM to detect intent and decide which tool to call
   console.log(`🤖 Asking LLM for intent...`);
   const decision = await detectIntentAndRespond(text, context);
-  
+
   console.log(`━━━ LLM DECISION ━━━`);
   console.log(`🎯 Intent: ${decision.intent}`);
   console.log(`🔧 Tool: ${decision.toolCall?.name || 'none'}`);
   console.log(`📝 Args: ${JSON.stringify(decision.toolCall?.arguments || {})}`);
 
   if (decision.toolCall && toolHandlers[decision.toolCall.name]) {
+    // 🛡️ VALIDATION LAYER
+    const { isValid, message: validationMsg } = validateToolCall(
+      decision.toolCall.name,
+      decision.toolCall.arguments
+    );
+
+    if (!isValid) {
+      console.warn(`Validation failed for ${decision.toolCall.name}: ${validationMsg}`);
+      await sendWhatsAppMessage(userId, validationMsg);
+      return { reply: null, updatedContext: context }; // Stop execution
+    }
+
     return await toolHandlers[decision.toolCall.name](
       decision.toolCall.arguments,
       userId,

@@ -58,6 +58,41 @@ async function getFoodByName(name) {
 }
 
 /**
+ * Get recommended food items based on tag/keyword
+ * @param {string} tag - Tag or keyword (e.g., "spicy", "soup", "veg")
+ * @returns {Promise<Array>} - Matching food items
+ */
+async function getRecommendedFoods(tag) {
+  if (!tag || tag === 'random') {
+    // Random selection
+    const res = await db.query(
+      `SELECT id, name, price, description, category, image_url 
+       FROM foods 
+       WHERE available = true 
+       ORDER BY RANDOM() 
+       LIMIT 1`
+    );
+    return res.rows;
+  }
+
+  const searchTerm = `%${tag}%`;
+  const res = await db.query(
+    `SELECT id, name, price, description, category, image_url 
+     FROM foods 
+     WHERE available = true 
+     AND (
+       LOWER(name) LIKE LOWER($1) OR 
+       LOWER(description) LIKE LOWER($1) OR 
+       LOWER(category) LIKE LOWER($1)
+     )
+     ORDER BY name
+     LIMIT 5`,
+    [searchTerm]
+  );
+  return res.rows;
+}
+
+/**
  * Create a new order for a WhatsApp user
  * @param {string} userWaId - WhatsApp user ID
  * @returns {Promise<Object>} - Created order with id
@@ -235,6 +270,7 @@ export {
   getMenu,
   getFoodById,
   getFoodByName,
+  getRecommendedFoods,
   createOrder,
   getActiveOrder,
   addItem,

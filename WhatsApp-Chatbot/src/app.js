@@ -10,6 +10,15 @@ dotenv.config();
 const app = express();
 app.use(express.json());
 
+// Handle JSON parse errors
+app.use((err, req, res, next) => {
+  if (err instanceof SyntaxError && err.status === 400 && 'body' in err) {
+    console.error('❌ JSON Parse Error:', err.message);
+    return res.status(400).send({ status: 400, message: err.message }); // Bad request
+  }
+  next();
+});
+
 const port = process.env.PORT || 3000;
 const verifyToken = process.env.VERIFY_TOKEN;
 
@@ -107,24 +116,24 @@ app.get('/init-db', async (req, res) => {
 
   try {
     console.log('🚀 Initializing database...');
-    
+
     // Create tables
     await db.query(schema);
     console.log('✅ Tables created');
-    
+
     // Check if data exists
     const existingData = await db.query('SELECT COUNT(*) FROM foods');
     const count = parseInt(existingData.rows[0].count);
-    
+
     if (count === 0) {
       await db.query(seedData);
       console.log('✅ Seed data inserted');
     }
-    
+
     // Get counts
     const foods = await db.query('SELECT COUNT(*) FROM foods');
     const orders = await db.query('SELECT COUNT(*) FROM orders');
-    
+
     res.json({
       success: true,
       message: 'Database initialized successfully',
@@ -232,7 +241,7 @@ app.get('/db/orders/:id', async (req, res) => {
       JOIN foods f ON oi.food_id = f.id 
       WHERE oi.order_id = $1
     `, [orderId]);
-    
+
     if (order.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Order not found' });
     }
@@ -323,6 +332,9 @@ app.get('/webhook', (req, res) => {
    WEBHOOK RECEIVER
 ====================== */
 app.post('/webhook', async (req, res) => {
+  console.log('\n🔔 [WEBHOOK RECEIVED] POST /webhook');
+  console.log('📦 Body:', JSON.stringify(req.body, null, 2));
+
   const object = req.body.object;
 
   if (object === 'whatsapp_business_account') {

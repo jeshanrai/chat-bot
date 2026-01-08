@@ -1,7 +1,7 @@
 const memory = new Map();
 
 async function getContext(userId) {
-  return memory.get(userId) || { stage: 'initial', cart: [] };
+  return memory.get(userId) || { stage: 'initial', cart: [], history: [] };
 }
 
 async function updateContext(userId, context) {

@@ -9,6 +9,13 @@ async function handleIncomingMessage(message) {
   // Check for interactive reply (button click or list selection)
   const interactiveReply = parseInteractiveReply(message);
 
+  // Add USER message to history
+  const history = context.history || [];
+  history.push({ role: 'user', content: message.text || (interactiveReply ? `[Selected: ${interactiveReply.title}]` : '[Media/Other]') });
+
+  // Keep last 10 messages
+  if (history.length > 10) history.shift();
+
   const decision = await routeIntent({
     text: message.text,
     context,
@@ -16,7 +23,17 @@ async function handleIncomingMessage(message) {
     interactiveReply
   });
 
-  await updateContext(userId, decision.updatedContext);
+  // Add ASSISTANT message to history (if text reply)
+  if (decision.reply) {
+    history.push({ role: 'assistant', content: decision.reply });
+    if (history.length > 10) history.shift();
+  } else if (decision.updatedContext && decision.updatedContext.lastAction) {
+    // If tool execution without direct text reply (e.g. showing a menu), log it as system action
+    history.push({ role: 'system', content: `Tool executed: ${decision.updatedContext.lastAction}` });
+    if (history.length > 10) history.shift();
+  }
+
+  await updateContext(userId, { ...decision.updatedContext, history });
 
   // Only send reply if there's one (interactive messages handle their own replies)
   if (decision.reply) {
