@@ -370,8 +370,9 @@ const toolHandlers = {
       }
     ];
 
-    await sendWhatsAppButtonMessage(
+    await sendButtonMessage(
       userId,
+      context.platform,
       '🛒 Your Cart',
       `${cartLines}\n━━━━━━━━━━━━━━━\nSubtotal: Rs.${total}\n\nWould you like to add more items or proceed to checkout?`,
       'You can add more items anytime!',
@@ -497,8 +498,9 @@ const toolHandlers = {
       }
     ];
 
-    await sendWhatsAppButtonMessage(
+    await sendButtonMessage(
       userId,
+      context.platform,
       '💳 Payment Method (Dine-in)',
       'How would you like to pay for your dine-in order?',
       'Select to continue',
@@ -534,8 +536,9 @@ const toolHandlers = {
       }
     ];
 
-    await sendWhatsAppButtonMessage(
+    await sendButtonMessage(
       userId,
+      context.platform,
       '💳 Payment Method (Delivery)',
       'Choose your preferred payment method:',
       'Select to continue',
