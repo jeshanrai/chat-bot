@@ -64,7 +64,7 @@ const toolHandlers = {
     }
   },
 
-  // Step 2: Show items in a category - FROM DATABASE (IMPROVED: No images, just list for faster selection)
+  // Step 2: Show items in a category - FROM DATABASE (with images in carousel)
   show_category_items: async (args, userId, context) => {
     try {
       const category = args.category || 'momos';
@@ -75,37 +75,56 @@ const toolHandlers = {
         return await toolHandlers.show_food_menu({}, userId, context);
       }
 
-      // Build selection list with prices - NO images for faster selection
-      const rows = foods.map(food => ({
-        id: `add_${food.id}`,
-        title: food.name.substring(0, 24), // WhatsApp limit
-        description: `Rs.${food.price} - ${(food.description || '').substring(0, 50)}`
-      }));
-
-      // Split into sections if needed (WhatsApp has 10 row limit per section)
-      const sections = [];
-      for (let i = 0; i < rows.length; i += 10) {
-        sections.push({
-          title: i === 0 ? `${category.charAt(0).toUpperCase() + category.slice(1)}` : `More ${category}`,
-          rows: rows.slice(i, i + 10)
-        });
-      }
-
       // Show current cart summary if items exist
       const cart = context.cart || [];
-      let bodyText = `Select items to add to your cart.\nTap an item to add it.`;
+      let bodyText = `Browse our delicious ${category}! Tap any item to add it to your cart.`;
       if (cart.length > 0) {
         const total = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-        bodyText = `🛒 Cart: ${cart.length} item(s) - Rs.${total}\n\nSelect more items to add:`;
+        bodyText = `🛒 Cart: ${cart.length} item(s) - Rs.${total}\n\nBrowse our ${category}:`;
       }
 
-      await sendWhatsAppListMessage(
+      // Build carousel cards with images (max 10 cards per WhatsApp limit)
+      const cards = foods.slice(0, 10).map(food => ({
+        card_index: foods.indexOf(food),
+        components: [
+          {
+            type: 'header',
+            parameters: [
+              {
+                type: 'image',
+                image: {
+                  link: food.image_url || 'https://images.unsplash.com/photo-1625220194771-7ebdea0b70b9?w=400&q=80'
+                }
+              }
+            ]
+          },
+          {
+            type: 'body',
+            parameters: [
+              {
+                type: 'text',
+                text: `**${food.name}**\n${food.description || ''}\n\n💰 Rs.${food.price}`
+              }
+            ]
+          },
+          {
+            type: 'button',
+            sub_type: 'quick_reply',
+            index: 0,
+            parameters: [
+              {
+                type: 'payload',
+                payload: `add_${food.id}`
+              }
+            ]
+          }
+        ]
+      }));
+
+      await sendWhatsAppCarouselMessage(
         userId,
-        `🍽️ ${category.toUpperCase()} Menu`,
         bodyText,
-        'Tap item to add to cart',
-        'View Items',
-        sections
+        cards
       );
 
       return {
