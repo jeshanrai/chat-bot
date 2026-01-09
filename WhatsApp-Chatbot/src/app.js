@@ -20,7 +20,11 @@ app.use((err, req, res, next) => {
 });
 
 const port = process.env.PORT || 3000;
-const verifyToken = process.env.VERIFY_TOKEN;
+
+// Platform-specific verification tokens
+const verifyToken = process.env.VERIFY_TOKEN; // Legacy/shared token
+const whatsappVerifyToken = process.env.WHATSAPP_VERIFY_TOKEN || process.env.VERIFY_TOKEN;
+const messengerVerifyToken = process.env.MESSENGER_VERIFY_TOKEN || process.env.VERIFY_TOKEN;
 
 /* ======================
    DATABASE HEALTH CHECK
@@ -314,29 +318,148 @@ app.get('/db', async (req, res) => {
 });
 
 /* ======================
-   WEBHOOK VERIFICATION
+   WHATSAPP WEBHOOK ENDPOINTS
+   Dedicated endpoints for WhatsApp Business API
+====================== */
+
+// WhatsApp Webhook Verification
+app.get('/whatsapp-webhook', (req, res) => {
+  const mode = req.query['hub.mode'];
+  const token = req.query['hub.verify_token'];
+  const challenge = req.query['hub.challenge'];
+
+  console.log('🟢 [WhatsApp Webhook Verification]');
+  console.log(`Mode: ${mode}, Token: ${token ? '***' : 'missing'}`);
+
+  if (mode === 'subscribe' && token === whatsappVerifyToken) {
+    console.log('✅ WHATSAPP WEBHOOK VERIFIED');
+    return res.status(200).send(challenge);
+  }
+  console.log('❌ WhatsApp webhook verification failed');
+  res.sendStatus(403);
+});
+
+// WhatsApp Webhook Receiver
+app.post('/whatsapp-webhook', async (req, res) => {
+  console.log('\n🟢 [WHATSAPP WEBHOOK] POST /whatsapp-webhook');
+  console.log('📦 Body:', JSON.stringify(req.body, null, 2));
+
+  const object = req.body.object;
+
+  if (object !== 'whatsapp_business_account') {
+    console.log('⚠️ Not a WhatsApp event, ignoring');
+    return res.sendStatus(200);
+  }
+
+  const entry = req.body.entry?.[0];
+  const change = entry?.changes?.[0];
+  const value = change?.value;
+  const messages = value?.messages;
+
+  if (Array.isArray(messages)) {
+    for (const message of messages) {
+      const userId = message.from;
+      const userName = value?.contacts?.[0]?.profile?.name || 'Unknown';
+      const messageType = message.type || 'text';
+
+      console.log(`\n━━━ WHATSAPP MESSAGE ━━━`);
+      console.log(`📱 From: ${userName} (${userId})`);
+      console.log(`📝 Type: ${messageType}`);
+
+      // Build message object for orchestrator
+      const msgObject = {
+        userId,
+        platform: 'whatsapp',
+        type: messageType
+      };
+
+      // Handle different message types
+      if (messageType === 'text') {
+        msgObject.text = message.text?.body || '';
+        console.log(`💬 Message: ${msgObject.text}`);
+      } else if (messageType === 'interactive') {
+        // Handle button replies and list replies
+        msgObject.interactive = message.interactive;
+        if (message.interactive?.type === 'button_reply') {
+          msgObject.text = message.interactive.button_reply.title;
+          console.log(`🔘 Button: ${message.interactive.button_reply.title} (${message.interactive.button_reply.id})`);
+        } else if (message.interactive?.type === 'list_reply') {
+          msgObject.text = message.interactive.list_reply.title;
+          console.log(`📋 List Selection: ${message.interactive.list_reply.title} (${message.interactive.list_reply.id})`);
+        }
+      }
+
+      // Skip if no processable content
+      if (!msgObject.text && !msgObject.interactive) {
+        console.log(`⏭️ Skipping unsupported message type`);
+        continue;
+      }
+
+      try {
+        await handleIncomingMessage(msgObject);
+        console.log(`✅ WhatsApp message processed for ${userId}\n`);
+      } catch (error) {
+        console.error(`❌ Error processing WhatsApp message:`, error);
+      }
+    }
+  }
+
+  return res.sendStatus(200);
+});
+
+/* ======================
+   MESSENGER WEBHOOK ENDPOINTS
+   Dedicated endpoints for Facebook Messenger
+====================== */
+
+// Messenger Webhook Verification
+app.get('/messenger-webhook', (req, res) => {
+  const mode = req.query['hub.mode'];
+  const token = req.query['hub.verify_token'];
+  const challenge = req.query['hub.challenge'];
+
+  console.log('🟦 [Messenger Webhook Verification]');
+  console.log(`Mode: ${mode}, Token: ${token ? '***' : 'missing'}`);
+
+  if (mode === 'subscribe' && token === messengerVerifyToken) {
+    console.log('✅ MESSENGER WEBHOOK VERIFIED');
+    return res.status(200).send(challenge);
+  }
+  console.log('❌ Messenger webhook verification failed');
+  res.sendStatus(403);
+});
+
+// Messenger Webhook Receiver
+app.post('/messenger-webhook', async (req, res) => {
+  console.log('\n🟦 [MESSENGER WEBHOOK] POST /messenger-webhook');
+  return messengerWebhook(req, res);
+});
+
+/* ======================
+   LEGACY COMBINED WEBHOOK (backward compatibility)
+   Routes to appropriate handler based on body.object
 ====================== */
 app.get('/webhook', (req, res) => {
   const mode = req.query['hub.mode'];
   const token = req.query['hub.verify_token'];
   const challenge = req.query['hub.challenge'];
 
+  console.log('🔔 [Legacy Webhook Verification]');
+
   if (mode === 'subscribe' && token === verifyToken) {
-    console.log('WEBHOOK VERIFIED');
+    console.log('✅ LEGACY WEBHOOK VERIFIED');
     return res.status(200).send(challenge);
   }
   res.sendStatus(403);
 });
 
-/* ======================
-   WEBHOOK RECEIVER
-====================== */
 app.post('/webhook', async (req, res) => {
-  console.log('\n🔔 [WEBHOOK RECEIVED] POST /webhook');
+  console.log('\n🔔 [LEGACY WEBHOOK] POST /webhook');
   console.log('📦 Body:', JSON.stringify(req.body, null, 2));
 
   const object = req.body.object;
 
+  // Route to WhatsApp handler
   if (object === 'whatsapp_business_account') {
     const entry = req.body.entry?.[0];
     const change = entry?.changes?.[0];
@@ -353,19 +476,16 @@ app.post('/webhook', async (req, res) => {
         console.log(`📱 From: ${userName} (${userId})`);
         console.log(`📝 Type: ${messageType}`);
 
-        // Build message object for orchestrator
         const msgObject = {
           userId,
           platform: 'whatsapp',
           type: messageType
         };
 
-        // Handle different message types
         if (messageType === 'text') {
           msgObject.text = message.text?.body || '';
           console.log(`💬 Message: ${msgObject.text}`);
         } else if (messageType === 'interactive') {
-          // Handle button replies and list replies
           msgObject.interactive = message.interactive;
           if (message.interactive?.type === 'button_reply') {
             msgObject.text = message.interactive.button_reply.title;
@@ -376,7 +496,6 @@ app.post('/webhook', async (req, res) => {
           }
         }
 
-        // Skip if no processable content
         if (!msgObject.text && !msgObject.interactive) {
           console.log(`⏭️ Skipping unsupported message type`);
           continue;
@@ -394,6 +513,7 @@ app.post('/webhook', async (req, res) => {
     return res.sendStatus(200);
   }
 
+  // Route to Messenger handler
   if (object === 'page') {
     return messengerWebhook(req, res);
   }

@@ -9,6 +9,16 @@ A Node.js webhook handler for WhatsApp and Messenger with AI-powered responses u
 - AI-powered responses via Groq
 - Multi-platform message handling
 - Intent detection and routing
+- Shared orchestrator for both platforms
+- Separate webhook endpoints with platform-specific tokens
+
+## Webhook Endpoints
+
+| Platform | Verification Endpoint | Message Receiver |
+|----------|----------------------|------------------|
+| WhatsApp | `GET /whatsapp-webhook` | `POST /whatsapp-webhook` |
+| Messenger | `GET /messenger-webhook` | `POST /messenger-webhook` |
+| Legacy (both) | `GET /webhook` | `POST /webhook` |
 
 ## Setup
 
@@ -26,16 +36,36 @@ A Node.js webhook handler for WhatsApp and Messenger with AI-powered responses u
    - Messenger API credentials
    - Groq API key
 
+## Environment Variables
+
+### WhatsApp Configuration
+```env
+WHATSAPP_ACCESS_TOKEN=your_whatsapp_access_token
+WHATSAPP_PHONE_NUMBER_ID=your_phone_number_id
+WHATSAPP_VERIFY_TOKEN=your_whatsapp_verify_token
+```
+
+### Messenger Configuration
+```env
+MESSENGER_PAGE_ACCESS_TOKEN=your_messenger_page_token
+MESSENGER_VERIFY_TOKEN=your_messenger_verify_token
+```
+
+### Shared/Legacy Token (optional - used if platform-specific not set)
+```env
+VERIFY_TOKEN=shared_verify_token
+```
+
 ## Configuration
 
 ### WhatsApp Setup
 - Get your WhatsApp Business API token
-- Configure webhook URL: `https://yourdomain.com/webhook/whatsapp`
+- Configure webhook URL: `https://yourdomain.com/whatsapp-webhook`
 - Set verify token in your WhatsApp app settings
 
 ### Messenger Setup
 - Get your Facebook Messenger token
-- Configure webhook URL: `https://yourdomain.com/webhook/messenger`
+- Configure webhook URL: `https://yourdomain.com/messenger-webhook`
 - Set verify token in your Messenger app settings
 
 ### Groq AI Setup
@@ -55,6 +85,35 @@ npm run dev
 npm start
 ```
 
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                         Express Server                       │
+├──────────────────────┬──────────────────────────────────────┤
+│  /whatsapp-webhook   │  /messenger-webhook                  │
+│  (GET/POST)          │  (GET/POST)                          │
+└──────────┬───────────┴───────────────┬──────────────────────┘
+           │                           │
+           ▼                           ▼
+┌──────────────────┐        ┌──────────────────┐
+│ WhatsApp Handler │        │ Messenger Handler│
+│ (whatsapp.js)    │        │ (messenger.js)   │
+└────────┬─────────┘        └────────┬─────────┘
+         │                           │
+         └───────────┬───────────────┘
+                     ▼
+         ┌───────────────────────┐
+         │     Orchestrator      │
+         │ (Same LLM + DB logic) │
+         └───────────┬───────────┘
+                     ▼
+         ┌───────────────────────┐
+         │    Reply Service      │
+         │ (Platform-aware send) │
+         └───────────────────────┘
+```
+
 ## Deployment
 
 ### Deploy to Heroku
@@ -63,8 +122,10 @@ npm start
 3. Create app: `heroku create your-app-name`
 4. Set environment variables:
    ```bash
-   heroku config:set WHATSAPP_TOKEN=your_token
-   heroku config:set MESSENGER_TOKEN=your_token
+   heroku config:set WHATSAPP_ACCESS_TOKEN=your_token
+   heroku config:set WHATSAPP_VERIFY_TOKEN=your_verify_token
+   heroku config:set MESSENGER_PAGE_ACCESS_TOKEN=your_messenger_token
+   heroku config:set MESSENGER_VERIFY_TOKEN=your_messenger_verify_token
    heroku config:set GROQ_API_KEY=your_key
    # ... add all other environment variables
    ```
