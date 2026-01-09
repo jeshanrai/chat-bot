@@ -65,7 +65,7 @@ const toolHandlers = {
     }
   },
 
-  // Step 2: Show items in a category - FROM DATABASE (with images in carousel)
+  // Step 2: Show items in a category - FROM DATABASE (as list message)
   show_category_items: async (args, userId, context) => {
     try {
       const category = args.category || 'momos';
@@ -78,54 +78,41 @@ const toolHandlers = {
 
       // Show current cart summary if items exist
       const cart = context.cart || [];
-      let bodyText = `Browse our delicious ${category}! Tap any item to add it to your cart.`;
+      const categoryEmoji = {
+        'momos': '🥟',
+        'noodles': '🍜',
+        'rice': '🍚',
+        'beverages': '☕'
+      }[category] || '🍽️';
+
+      let bodyText = `Browse our delicious ${category}! Select any item to add it to your cart.`;
       if (cart.length > 0) {
         const total = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-        bodyText = `🛒 Cart: ${cart.length} item(s) - Rs.${total}\n\nBrowse our ${category}:`;
+        const itemCount = cart.reduce((sum, item) => sum + item.quantity, 0);
+        bodyText = `🛒 Cart: ${itemCount} item(s) - Rs.${total}\n\nSelect items to add:`;
       }
 
-      // Build carousel cards with images (max 10 cards per WhatsApp limit)
-      const cards = foods.slice(0, 10).map(food => ({
-        card_index: foods.indexOf(food),
-        components: [
-          {
-            type: 'header',
-            parameters: [
-              {
-                type: 'image',
-                image: {
-                  link: food.image_url || 'https://images.unsplash.com/photo-1625220194771-7ebdea0b70b9?w=400&q=80'
-                }
-              }
-            ]
-          },
-          {
-            type: 'body',
-            parameters: [
-              {
-                type: 'text',
-                text: `**${food.name}**\n${food.description || ''}\n\n💰 Rs.${food.price}`
-              }
-            ]
-          },
-          {
-            type: 'button',
-            sub_type: 'quick_reply',
-            index: 0,
-            parameters: [
-              {
-                type: 'payload',
-                payload: `add_${food.id}`
-              }
-            ]
-          }
-        ]
+      // Build list rows (max 10 items per WhatsApp limit)
+      const rows = foods.slice(0, 10).map(food => ({
+        id: `add_${food.id}`,
+        title: food.name.substring(0, 24), // WhatsApp limit: 24 chars
+        description: `Rs.${food.price} - ${(food.description || '').substring(0, 72)}` // WhatsApp limit: 72 chars
       }));
 
-      await sendWhatsAppCarouselMessage(
+      const sections = [
+        {
+          title: `${category.charAt(0).toUpperCase() + category.slice(1)} ${categoryEmoji}`,
+          rows: rows
+        }
+      ];
+
+      await sendWhatsAppListMessage(
         userId,
+        `${categoryEmoji} ${category.charAt(0).toUpperCase() + category.slice(1)}`,
         bodyText,
-        cards
+        'Tap to add items to cart',
+        'Select Item',
+        sections
       );
 
       return {
