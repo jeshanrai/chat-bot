@@ -471,28 +471,65 @@ const toolHandlers = {
     };
   },
 
-  // Show payment method selection buttons
-  show_payment_options: async (args, userId, context) => {
+  // Show payment method selection buttons for DINE-IN
+  show_dine_in_payment_options: async (args, userId, context) => {
     const buttons = [
       {
         type: 'reply',
         reply: {
-          id: 'pay_cod',
-          title: 'Cash on Delivery'
+          id: 'pay_cash_counter',
+          title: 'Cash at Counter 💵'
         }
       },
       {
         type: 'reply',
         reply: {
           id: 'pay_online',
-          title: 'Online Payment'
+          title: 'Online Payment 📱'
         }
       }
     ];
 
     await sendWhatsAppButtonMessage(
       userId,
-      '💳 Payment Method',
+      '💳 Payment Method (Dine-in)',
+      'How would you like to pay for your dine-in order?',
+      'Select to continue',
+      buttons
+    );
+
+    return {
+      reply: null,
+      updatedContext: {
+        ...context,
+        stage: 'selecting_payment',
+        lastAction: 'show_dine_in_payment_options'
+      }
+    };
+  },
+
+  // Show payment method selection buttons for DELIVERY
+  show_payment_options: async (args, userId, context) => {
+    const buttons = [
+      {
+        type: 'reply',
+        reply: {
+          id: 'pay_cod',
+          title: 'Cash on Delivery 💵'
+        }
+      },
+      {
+        type: 'reply',
+        reply: {
+          id: 'pay_online',
+          title: 'Online Payment 📱'
+        }
+      }
+    ];
+
+    await sendWhatsAppButtonMessage(
+      userId,
+      '💳 Payment Method (Delivery)',
       'Choose your preferred payment method:',
       'Select to continue',
       buttons
@@ -648,13 +685,20 @@ const toolHandlers = {
 
     // Phase 2: Handle Selection
     if (type === 'dine_in') {
-      // For dine-in, go straight to payment
-      return await toolHandlers.show_payment_options({}, userId, {
+      if (context.orderId) {
+        await restaurantTools.updateServiceType(context.orderId, 'dine_in');
+        await restaurantTools.updateDeliveryAddress(context.orderId, 'Dine-in');
+      }
+
+      // For dine-in, show dine-in specific payment options
+      return await toolHandlers.show_dine_in_payment_options({}, userId, {
         ...context,
         serviceType: 'dine_in',
         deliveryAddress: "Dine-in"
       });
     } else if (type === 'delivery') {
+      await restaurantTools.updateServiceType(context.orderId, 'delivery');
+
       // For delivery, ask for address
       await sendWhatsAppMessage(
         userId,
@@ -683,6 +727,10 @@ const toolHandlers = {
     }
 
     // Confirm address and proceed to payment
+    if (context.orderId) {
+      await restaurantTools.updateDeliveryAddress(context.orderId, address);
+    }
+
     await sendWhatsAppMessage(
       userId,
       `✅ Delivery address set to: *${address}*`
@@ -700,6 +748,8 @@ const toolHandlers = {
     const orderId = context.orderId;
     const cart = context.cart || [];
     const total = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+    const serviceType = context.serviceType || 'delivery';
+    const isDineIn = serviceType === 'dine_in';
 
     try {
       if (orderId) {
@@ -728,21 +778,49 @@ const toolHandlers = {
           `Order ID: #${orderId || 'MH' + Date.now().toString().slice(-6)}`
         );
 
-        await sendWhatsAppMessage(
-          userId,
-          `✅ Order Placed!\n\nYour order will be prepared once payment is confirmed.\n\nDelivery: 30-40 minutes after confirmation.\n\nThank you for ordering! 🥟`
-        );
+        if (isDineIn) {
+          await sendWhatsAppMessage(
+            userId,
+            `✅ Order Placed!\n\n` +
+            `Your order will be prepared once payment is confirmed.\n\n` +
+            `🍽️ Please come to our restaurant to enjoy your meal!\n\n` +
+            `Preparation time: 15-20 minutes.\n\n` +
+            `Thank you for ordering! 🥟`
+          );
+        } else {
+          await sendWhatsAppMessage(
+            userId,
+            `✅ Order Placed!\n\n` +
+            `Your order will be prepared once payment is confirmed.\n\n` +
+            `🛵 Delivery: 30-40 minutes after confirmation.\n\n` +
+            `Thank you for ordering! 🥟`
+          );
+        }
       } else {
-        // Cash on Delivery
-        await sendWhatsAppMessage(
-          userId,
-          `✅ Order Confirmed!\n\n` +
-          `💳 Payment: Cash on Delivery\n` +
-          `💰 Amount: Rs.${total}\n\n` +
-          `Your delicious food is being prepared and will be delivered in 30-40 minutes.\n\n` +
-          `Order ID: #${orderId || 'MH' + Date.now().toString().slice(-6)}\n\n` +
-          `Please keep Rs.${total} ready!\n\nEnjoy your meal! 🥟`
-        );
+        // Cash payment (at counter for dine-in, on delivery for delivery)
+        if (isDineIn) {
+          await sendWhatsAppMessage(
+            userId,
+            `✅ Order Confirmed!\n\n` +
+            `💳 Payment: Cash at Counter\n` +
+            `💰 Amount: Rs.${total}\n\n` +
+            `Your delicious food is being prepared!\n\n` +
+            `🍽️ Please come to our restaurant and pay at the counter.\n\n` +
+            `Order ID: #${orderId || 'MH' + Date.now().toString().slice(-6)}\n\n` +
+            `Preparation time: 15-20 minutes.\n\n` +
+            `Enjoy your meal! 🥟`
+          );
+        } else {
+          await sendWhatsAppMessage(
+            userId,
+            `✅ Order Confirmed!\n\n` +
+            `💳 Payment: Cash on Delivery\n` +
+            `💰 Amount: Rs.${total}\n\n` +
+            `Your delicious food is being prepared and will be delivered in 30-40 minutes.\n\n` +
+            `Order ID: #${orderId || 'MH' + Date.now().toString().slice(-6)}\n\n` +
+            `Please keep Rs.${total} ready!\n\nEnjoy your meal! 🥟`
+          );
+        }
       }
 
       return {

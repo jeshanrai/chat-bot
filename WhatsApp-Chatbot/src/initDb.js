@@ -31,6 +31,8 @@ CREATE TABLE IF NOT EXISTS orders (
     user_wa_id VARCHAR(50) NOT NULL,
     status VARCHAR(50) DEFAULT 'created',
     payment_method VARCHAR(20),
+    service_type VARCHAR(20),
+    address TEXT,
     created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW()
 );
@@ -87,17 +89,17 @@ ON CONFLICT DO NOTHING;
 
 async function initializeDatabase() {
   console.log('🚀 Starting database initialization...\n');
-  
+
   try {
     // Create tables
     console.log('📦 Creating tables...');
     await db.query(schema);
     console.log('✅ Tables created successfully!\n');
-    
+
     // Check if data already exists
     const existingData = await db.query('SELECT COUNT(*) FROM foods');
     const count = parseInt(existingData.rows[0].count);
-    
+
     if (count > 0) {
       console.log(`ℹ️  Database already has ${count} food items. Skipping seed data.`);
     } else {
@@ -106,16 +108,16 @@ async function initializeDatabase() {
       await db.query(seedData);
       console.log('✅ Seed data inserted successfully!\n');
     }
-    
+
     // Verify
     const foods = await db.query('SELECT COUNT(*) FROM foods');
     const orders = await db.query('SELECT COUNT(*) FROM orders');
-    
+
     console.log('📊 Database Status:');
     console.log(`   - Foods: ${foods.rows[0].count} items`);
     console.log(`   - Orders: ${orders.rows[0].count} orders`);
     console.log('\n✅ Database initialization complete!');
-    
+
   } catch (error) {
     console.error('❌ Database initialization failed:', error.message);
     throw error;

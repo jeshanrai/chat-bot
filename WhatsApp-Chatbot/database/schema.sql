@@ -21,6 +21,8 @@ CREATE TABLE IF NOT EXISTS orders (
     user_wa_id VARCHAR(50) NOT NULL,
     status VARCHAR(50) DEFAULT 'created',
     payment_method VARCHAR(20),
+    service_type VARCHAR(20),
+    address TEXT,
     created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW()
 );

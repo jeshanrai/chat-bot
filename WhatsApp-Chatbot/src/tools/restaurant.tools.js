@@ -266,6 +266,34 @@ async function getOrderHistory(userWaId, limit = 5) {
   return res.rows;
 }
 
+/**
+ * Update service type (dine_in vs delivery)
+ * @param {number} orderId - Order ID
+ * @param {string} type - Service type
+ * @returns {Promise<Object>} - Updated order
+ */
+async function updateServiceType(orderId, type) {
+  const res = await db.query(
+    'UPDATE orders SET service_type = $1 WHERE id = $2 RETURNING id, service_type',
+    [type, orderId]
+  );
+  return res.rows[0];
+}
+
+/**
+ * Update delivery address
+ * @param {number} orderId - Order ID
+ * @param {string} address - Delivery address
+ * @returns {Promise<Object>} - Updated order
+ */
+async function updateDeliveryAddress(orderId, address) {
+  const res = await db.query(
+    'UPDATE orders SET address = $1 WHERE id = $2 RETURNING id, address',
+    [address, orderId]
+  );
+  return res.rows[0];
+}
+
 export {
   getMenu,
   getFoodById,
@@ -280,5 +308,7 @@ export {
   updateOrderStatus,
   selectPayment,
   cancelOrder,
-  getOrderHistory
+  getOrderHistory,
+  updateServiceType,
+  updateDeliveryAddress
 };
