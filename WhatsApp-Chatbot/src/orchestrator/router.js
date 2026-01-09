@@ -6,6 +6,7 @@ import {
   sendWhatsAppListMessage,
   sendWhatsAppImageMessage,
   sendWhatsAppButtonMessage,
+  sendWhatsAppCarouselMessage,
   sendOrderConfirmationMessage
 } from '../whatsapp/sendmessage.js';
 import * as restaurantTools from '../tools/restaurant.tools.js';
