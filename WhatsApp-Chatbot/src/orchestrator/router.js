@@ -2,13 +2,12 @@ import { detectIntentAndRespond } from '../ai/intentEngine.js';
 import { validateToolCall } from '../ai/validator.js';
 import { generateToolResponse } from '../ai/responseGenerator.js';
 import {
-  sendWhatsAppMessage,
-  sendWhatsAppListMessage,
-  sendWhatsAppImageMessage,
-  sendWhatsAppButtonMessage,
-  sendWhatsAppCarouselMessage,
+  sendMessage,
+  sendListMessage,
+  sendButtonMessage,
+  sendCarouselMessage,
   sendOrderConfirmationMessage
-} from '../whatsapp/sendmessage.js';
+} from '../services/response.js';
 import * as restaurantTools from '../tools/restaurant.tools.js';
 
 // Tool execution handlers
@@ -41,8 +40,9 @@ const toolHandlers = {
         }
       ];
 
-      await sendWhatsAppListMessage(
+      await sendListMessage(
         userId,
+        context.platform,
         '🍽️ Restaurant Menu',
         'Welcome! What would you like to order today? Browse our delicious categories below.',
         'Tap to view options',
@@ -60,7 +60,7 @@ const toolHandlers = {
       };
     } catch (error) {
       console.error('Error fetching menu:', error);
-      await sendWhatsAppMessage(userId, "Sorry, I couldn't load the menu. Please try again.");
+      await sendMessage(userId, context.platform, "Sorry, I couldn't load the menu. Please try again.");
       return { reply: null, updatedContext: context };
     }
   },
@@ -72,7 +72,7 @@ const toolHandlers = {
       const foods = await restaurantTools.getMenu(category);
 
       if (foods.length === 0) {
-        await sendWhatsAppMessage(userId, `No items found in ${category}. Try another category!`);
+        await sendMessage(userId, context.platform, `No items found in ${category}. Try another category!`);
         return await toolHandlers.show_food_menu({}, userId, context);
       }
 
@@ -106,8 +106,9 @@ const toolHandlers = {
         }
       ];
 
-      await sendWhatsAppListMessage(
+      await sendListMessage(
         userId,
+        context.platform,
         `${categoryEmoji} ${category.charAt(0).toUpperCase() + category.slice(1)}`,
         bodyText,
         'Tap to add items to cart',
@@ -127,7 +128,7 @@ const toolHandlers = {
       };
     } catch (error) {
       console.error('Error fetching category items:', error);
-      await sendWhatsAppMessage(userId, "Sorry, I couldn't load the items. Please try again.");
+      await sendMessage(userId, context.platform, "Sorry, I couldn't load the items. Please try again.");
       return { reply: null, updatedContext: context };
     }
   },
@@ -148,7 +149,7 @@ const toolHandlers = {
       const food = await restaurantTools.getFoodById(foodId);
 
       if (!food) {
-        await sendWhatsAppMessage(userId, "Sorry, that item is not available.");
+        await sendMessage(userId, context.platform, "Sorry, that item is not available.");
         return { reply: null, updatedContext: context };
       }
 
@@ -194,8 +195,9 @@ const toolHandlers = {
         }
       ];
 
-      await sendWhatsAppButtonMessage(
+      await sendButtonMessage(
         userId,
+        context.platform,
         '✅ Added to Cart!',
         `*${food.name}* x${quantity} - Rs.${food.price * quantity}\n\n🛒 Cart: ${itemCount} item(s) | Total: Rs.${total}\n\nWhat would you like to do?`,
         'Keep adding or checkout!',
@@ -214,7 +216,7 @@ const toolHandlers = {
       };
     } catch (error) {
       console.error('Error adding to cart:', error);
-      await sendWhatsAppMessage(userId, "Sorry, couldn't add that item. Please try again.");
+      await sendMessage(userId, context.platform, "Sorry, couldn't add that item. Please try again.");
       return { reply: null, updatedContext: context };
     }
   },
@@ -227,7 +229,7 @@ const toolHandlers = {
       const cart = context.cart || [];
 
       if (!itemName) {
-        await sendWhatsAppMessage(userId, "Please specify which item you want to add.");
+        await sendMessage(userId, context.platform, "Please specify which item you want to add.");
         return { reply: null, updatedContext: context };
       }
 
@@ -236,8 +238,7 @@ const toolHandlers = {
 
       if (matchingItems.length === 0) {
         // Item not found - show helpful message
-        await sendWhatsAppMessage(
-          userId,
+        await sendMessage(userId, context.platform,
           `❌ Sorry, "${itemName}" is not available on our menu.\n\nType "menu" to see what we have! 🍽️`
         );
         return { reply: null, updatedContext: context };
@@ -313,8 +314,9 @@ const toolHandlers = {
         description: `Rs.${food.price} - ${(food.description || '').substring(0, 50)}`
       }));
 
-      await sendWhatsAppListMessage(
+      await sendListMessage(
         userId,
+        context.platform,
         '🔍 Multiple Matches Found',
         `Found ${matchingItems.length} item(s) matching "${itemName}".\nSelect the one you want:`,
         'Tap to add to cart',
@@ -332,7 +334,7 @@ const toolHandlers = {
       };
     } catch (error) {
       console.error('Error adding item by name:', error);
-      await sendWhatsAppMessage(userId, "Sorry, couldn't find that item. Try browsing our menu!");
+      await sendMessage(userId, context.platform, "Sorry, couldn't find that item. Try browsing our menu!");
       return { reply: null, updatedContext: context };
     }
   },
@@ -342,7 +344,7 @@ const toolHandlers = {
     const cart = context.cart || [];
 
     if (cart.length === 0) {
-      await sendWhatsAppMessage(userId, "Your cart is empty! Let me show you our menu.");
+      await sendMessage(userId, context.platform, "Your cart is empty! Let me show you our menu.");
       return await toolHandlers.show_food_menu({}, userId, context);
     }
 
@@ -392,7 +394,7 @@ const toolHandlers = {
     let items = safeArgs.items || context.cart || [];
 
     if (items.length === 0) {
-      await sendWhatsAppMessage(userId, "Your cart is empty! Let me show you our menu.");
+      await sendMessage(userId, context.platform, "Your cart is empty! Let me show you our menu.");
       return await toolHandlers.show_food_menu({}, userId, context);
     }
 
@@ -439,8 +441,7 @@ const toolHandlers = {
 
     // If no valid items after validation
     if (validatedItems.length === 0) {
-      await sendWhatsAppMessage(
-        userId,
+      await sendMessage(userId, context.platform,
         `❌ Sorry, none of the items are available:\n${invalidItems.map(n => `• ${n}`).join('\n')}\n\nType "menu" to see what we have! 🍽️`
       );
       return await toolHandlers.show_food_menu({}, userId, context);
@@ -448,8 +449,7 @@ const toolHandlers = {
 
     // Notify about invalid items if any
     if (invalidItems.length > 0) {
-      await sendWhatsAppMessage(
-        userId,
+      await sendMessage(userId, context.platform,
         `⚠️ Note: These items are not available and were removed:\n${invalidItems.map(n => `• ${n}`).join('\n')}`
       );
     }
@@ -464,7 +464,7 @@ const toolHandlers = {
     const total = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
     const orderDetails = `${orderLines}\n━━━━━━━━━━━━━━━\nTotal: Rs.${total}`;
 
-    await sendOrderConfirmationMessage(userId, orderDetails);
+    await sendOrderConfirmationMessage(userId, context.platform, orderDetails);
 
     return {
       reply: null,
@@ -577,8 +577,7 @@ const toolHandlers = {
         console.error('Error creating order:', error);
         // Fallback without database
         const orderId = `MH${Date.now().toString().slice(-6)}`;
-        await sendWhatsAppMessage(
-          userId,
+        await sendMessage(userId, context.platform,
           `✅ Order Confirmed!\n\nThank you for your order! Your delicious food is being prepared and will be delivered in 30-40 minutes.\n\nOrder ID: #${orderId}\n\nEnjoy your meal! 🥟`
         );
         return {
@@ -595,8 +594,7 @@ const toolHandlers = {
       const cart = context.cart || [];
       const itemCount = cart.reduce((sum, item) => sum + item.quantity, 0);
 
-      await sendWhatsAppMessage(
-        userId,
+      await sendMessage(userId, context.platform,
         `❌ Order Cancelled\n\n${itemCount} item(s) removed from cart.\n\nNo worries! Feel free to browse our menu again whenever you're ready.\n\nType "menu" to start a new order! 🍽️`
       );
       return {
@@ -630,8 +628,9 @@ const toolHandlers = {
         }
       ];
 
-      await sendWhatsAppButtonMessage(
+      await sendButtonMessage(
         userId,
+        context.platform,
         '⚠️ Cancel Order?',
         `Are you sure you want to cancel?\n\n🛒 Cart: ${itemCount} item(s)\n💰 Total: Rs.${total}\n\nThis will remove all items from your cart.`,
         'Please confirm',
@@ -672,8 +671,9 @@ const toolHandlers = {
         }
       ];
 
-      await sendWhatsAppButtonMessage(
+      await sendButtonMessage(
         userId,
+        context.platform,
         '🍽️ Service Type',
         'Would you like to Dine-in or have it Delivered?',
         'Please select one',
@@ -707,8 +707,7 @@ const toolHandlers = {
       await restaurantTools.updateServiceType(context.orderId, 'delivery');
 
       // For delivery, ask for address
-      await sendWhatsAppMessage(
-        userId,
+      await sendMessage(userId, context.platform,
         `📍 *Delivery Location*\n\nPlease type your delivery address/location so we can bring your food to you! 🏠`
       );
 
@@ -729,7 +728,7 @@ const toolHandlers = {
     const address = args.address;
 
     if (!address) {
-      await sendWhatsAppMessage(userId, "Please provide a valid delivery address.");
+      await sendMessage(userId, context.platform, "Please provide a valid delivery address.");
       return { reply: null, updatedContext: context };
     }
 
@@ -738,8 +737,7 @@ const toolHandlers = {
       await restaurantTools.updateDeliveryAddress(context.orderId, address);
     }
 
-    await sendWhatsAppMessage(
-      userId,
+    await sendMessage(userId, context.platform,
       `✅ Delivery address set to: *${address}*`
     );
 
@@ -765,8 +763,7 @@ const toolHandlers = {
 
       if (method === 'ONLINE') {
         // Show online payment details with dummy values
-        await sendWhatsAppMessage(
-          userId,
+        await sendMessage(userId, context.platform,
           `💳 *Online Payment Details*\n\n` +
           `━━━━━━━━━━━━━━━━━━━━━\n` +
           `📱 *eSewa*\n` +
@@ -786,8 +783,7 @@ const toolHandlers = {
         );
 
         if (isDineIn) {
-          await sendWhatsAppMessage(
-            userId,
+          await sendMessage(userId, context.platform,
             `✅ Order Placed!\n\n` +
             `Your order will be prepared once payment is confirmed.\n\n` +
             `🍽️ Please come to our restaurant to enjoy your meal!\n\n` +
@@ -795,8 +791,7 @@ const toolHandlers = {
             `Thank you for ordering! 🥟`
           );
         } else {
-          await sendWhatsAppMessage(
-            userId,
+          await sendMessage(userId, context.platform,
             `✅ Order Placed!\n\n` +
             `Your order will be prepared once payment is confirmed.\n\n` +
             `🛵 Delivery: 30-40 minutes after confirmation.\n\n` +
@@ -806,8 +801,7 @@ const toolHandlers = {
       } else {
         // Cash payment (at counter for dine-in, on delivery for delivery)
         if (isDineIn) {
-          await sendWhatsAppMessage(
-            userId,
+          await sendMessage(userId, context.platform,
             `✅ Order Confirmed!\n\n` +
             `💳 Payment: Cash at Counter\n` +
             `💰 Amount: Rs.${total}\n\n` +
@@ -818,8 +812,7 @@ const toolHandlers = {
             `Enjoy your meal! 🥟`
           );
         } else {
-          await sendWhatsAppMessage(
-            userId,
+          await sendMessage(userId, context.platform,
             `✅ Order Confirmed!\n\n` +
             `💳 Payment: Cash on Delivery\n` +
             `💰 Amount: Rs.${total}\n\n` +
@@ -841,7 +834,7 @@ const toolHandlers = {
       };
     } catch (error) {
       console.error('Error processing payment:', error);
-      await sendWhatsAppMessage(userId, "Order confirmed! We'll contact you for payment details.");
+      await sendMessage(userId, context.platform, "Order confirmed! We'll contact you for payment details.");
       return {
         reply: null,
         updatedContext: { stage: 'order_complete', cart: [] }
@@ -855,8 +848,7 @@ const toolHandlers = {
       const orders = await restaurantTools.getOrderHistory(userId, 5);
 
       if (orders.length === 0) {
-        await sendWhatsAppMessage(
-          userId,
+        await sendMessage(userId, context.platform,
           `📋 *Order History*\n\nYou haven't placed any orders yet!\n\nType "menu" to start your first order! 🍽️`
         );
         return { reply: null, updatedContext: context };
@@ -887,7 +879,7 @@ const toolHandlers = {
         historyText += `   💳 ${order.payment_method || 'Pending'}\n`;
       }
 
-      await sendWhatsAppMessage(userId, historyText);
+      await sendMessage(userId, context.platform, historyText);
 
       return {
         reply: null,
@@ -899,7 +891,7 @@ const toolHandlers = {
 
     } catch (error) {
       console.error('Error fetching order history:', error);
-      await sendWhatsAppMessage(userId, "Sorry, I couldn't check your order history right now.");
+      await sendMessage(userId, context.platform, "Sorry, I couldn't check your order history right now.");
       return { reply: null, updatedContext: context };
     }
   },
@@ -914,8 +906,7 @@ const toolHandlers = {
       const foods = await restaurantTools.getRecommendedFoods(tag);
 
       if (foods.length === 0) {
-        await sendWhatsAppMessage(
-          userId,
+        await sendMessage(userId, context.platform,
           `🤔 I couldn't find any specific items for "${tag}", but we have lots of other delicious options!\n\nType "menu" to see our full range. 🍽️`
         );
         return { reply: null, updatedContext: context };
@@ -935,8 +926,9 @@ const toolHandlers = {
       // Dynamic Body using LLM
       const body = await generateToolResponse('recommend_food', { tag }, foods, context);
 
-      await sendWhatsAppListMessage(
+      await sendListMessage(
         userId,
+        context.platform,
         title,
         body,
         'Tap to add to cart',
@@ -955,7 +947,7 @@ const toolHandlers = {
 
     } catch (error) {
       console.error('Error getting recommendations:', error);
-      await sendWhatsAppMessage(userId, "Sorry, I'm having trouble getting recommendations right now.");
+      await sendMessage(userId, context.platform, "Sorry, I'm having trouble getting recommendations right now.");
       return { reply: null, updatedContext: context };
     }
   },
@@ -965,7 +957,7 @@ const toolHandlers = {
     const message = args.message || "Hello! Welcome to our restaurant 🍽️ Type 'menu' to see our delicious options!";
     console.log(`━━━ SENDING TEXT REPLY ━━━`);
     console.log(`💬 Message: ${message}`);
-    await sendWhatsAppMessage(userId, message);
+    await sendMessage(userId, context.platform, message);
     return {
       reply: null,
       updatedContext: context
@@ -1093,7 +1085,7 @@ async function routeIntent({ text, context, userId, interactiveReply }) {
 
     if (!isValid) {
       console.warn(`Validation failed for ${decision.toolCall.name}: ${validationMsg}`);
-      await sendWhatsAppMessage(userId, validationMsg);
+      await sendMessage(userId, context.platform, validationMsg);
       return { reply: null, updatedContext: context }; // Stop execution
     }
 
@@ -1106,7 +1098,7 @@ async function routeIntent({ text, context, userId, interactiveReply }) {
 
   // Fallback
   const fallbackMessage = decision.response || "Hello! Welcome to our restaurant 🍽️ Type 'menu' to see our delicious options!";
-  await sendWhatsAppMessage(userId, fallbackMessage);
+  await sendMessage(userId, context.platform, fallbackMessage);
   return {
     reply: null,
     updatedContext: context

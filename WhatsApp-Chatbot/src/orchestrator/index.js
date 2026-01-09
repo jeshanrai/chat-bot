@@ -4,7 +4,13 @@ import { sendReply } from '../services/reply.js';
 
 async function handleIncomingMessage(message) {
   const userId = message.userId;
-  const context = await getContext(userId);
+  let context = await getContext(userId);
+
+  // Ensure platform is stored in context
+  if (message.platform && context.platform !== message.platform) {
+    context.platform = message.platform;
+    await updateContext(userId, context);
+  }
 
   // Check for interactive reply (button click or list selection)
   const interactiveReply = parseInteractiveReply(message);
