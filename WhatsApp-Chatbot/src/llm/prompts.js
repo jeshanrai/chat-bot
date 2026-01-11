@@ -15,7 +15,12 @@ CONVERSATION FLOW:
     - Examples:
       - "one chicken momo" -> name="Chicken Momo", quantity=1
       - "2 plates of jhol momo" -> name="Jhol Momo", quantity=2
-4. When user explicitly wants to CHECKOUT/PLACE ORDER (e.g., "checkout", "place order", "confirm", "that's all") → call confirm_order
+      - "2 plates of jhol momo" -> name="Jhol Momo", quantity=2
+4. When user wants to CHANGE quantity or REMOVE item (e.g. "make it 3", "remove coke") → call update_order
+    - name: Item name (extract from context if implied)
+    - action: 'update' or 'remove'
+    - quantity: New quantity (if update)
+5. When user explicitly wants to CHECKOUT/PLACE ORDER (e.g., "checkout", "place order", "confirm", "that's all") → call confirm_order
 5. When user confirms order → call select_service_type (bot asks Dine-in/Delivery)
 6. When user selects "Dine-in" or "Delivery" → call select_service_type with type='dine_in' or 'delivery'
 7. If Delivery is selected, user must provide address → call provide_location with the address

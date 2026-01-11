@@ -19,14 +19,14 @@ export async function addToCart(args, userId, context) {
     const foodId = parseInt(args.foodId);
     const quantity = args.quantity || 1;
     const cart = context.cart || [];
-    
+
     const food = await menuService.getFoodById(foodId);
-    
+
     if (!food) {
       await sendMessage(userId, context.platform, "Sorry, that item is not available.");
       return { reply: null, updatedContext: context };
     }
-    
+
     // Check if item already in cart
     const existingItem = cart.find(item => item.foodId === foodId);
     if (existingItem) {
@@ -39,16 +39,16 @@ export async function addToCart(args, userId, context) {
         quantity
       });
     }
-    
+
     const total = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
     const itemCount = cart.reduce((sum, item) => sum + item.quantity, 0);
-    
+
     const buttons = [
       buildWhatsAppButton(`more_${context.currentCategory || 'momos'}`, 'Add More ➕'),
       buildWhatsAppButton('view_all_categories', 'Other Categories 📋'),
       buildWhatsAppButton('proceed_checkout', 'Checkout 🛒')
     ];
-    
+
     await sendButtonMessage(
       userId,
       context.platform,
@@ -57,7 +57,7 @@ export async function addToCart(args, userId, context) {
       'What would you like to do next?',
       buttons
     );
-    
+
     return {
       reply: null,
       updatedContext: {
@@ -82,18 +82,18 @@ export async function addItemByName(args, userId, context) {
     const name = args.name;
     const quantity = args.quantity || 1;
     const cart = context.cart || [];
-    
+
     // Search for the food item
     const results = await menuService.searchFoodByName(name);
-    
+
     if (results.length === 0) {
       await sendMessage(userId, context.platform, `Sorry, I couldn't find "${name}" in our menu. Try browsing our categories!`);
       return { reply: null, updatedContext: context };
     }
-    
+
     // Use the first match
     const food = results[0];
-    
+
     // Check if item already in cart
     const existingItem = cart.find(item => item.foodId === food.id);
     if (existingItem) {
@@ -106,16 +106,16 @@ export async function addItemByName(args, userId, context) {
         quantity
       });
     }
-    
+
     const total = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
     const itemCount = cart.reduce((sum, item) => sum + item.quantity, 0);
-    
+
     const buttons = [
       buildWhatsAppButton('add_more', 'Add More ➕'),
       buildWhatsAppButton('view_cart', 'View Cart 🛒'),
       buildWhatsAppButton('proceed_checkout', 'Checkout ✅')
     ];
-    
+
     await sendButtonMessage(
       userId,
       context.platform,
@@ -124,7 +124,7 @@ export async function addItemByName(args, userId, context) {
       'What would you like to do next?',
       buttons
     );
-    
+
     return {
       reply: null,
       updatedContext: {
@@ -147,20 +147,20 @@ export async function addItemByName(args, userId, context) {
 export async function viewCart(args, userId, context) {
   try {
     const cart = context.cart || [];
-    
+
     if (cart.length === 0) {
       await sendMessage(userId, context.platform, "Your cart is empty! Browse our menu to add items. 🍽️");
       return { reply: null, updatedContext: context };
     }
-    
+
     const summary = formatCartSummary(cart);
-    
+
     const buttons = [
       buildWhatsAppButton('add_more', 'Add More ➕'),
       buildWhatsAppButton('clear_cart', 'Clear Cart 🗑️'),
       buildWhatsAppButton('proceed_checkout', 'Checkout ✅')
     ];
-    
+
     await sendButtonMessage(
       userId,
       context.platform,
@@ -169,7 +169,7 @@ export async function viewCart(args, userId, context) {
       'Ready to checkout?',
       buttons
     );
-    
+
     return {
       reply: null,
       updatedContext: {
@@ -189,7 +189,7 @@ export async function viewCart(args, userId, context) {
  */
 export async function clearCart(args, userId, context) {
   await sendMessage(userId, context.platform, "🗑️ Your cart has been cleared. Start fresh!");
-  
+
   return {
     reply: null,
     updatedContext: {
@@ -199,4 +199,71 @@ export async function clearCart(args, userId, context) {
       lastAction: 'clear_cart'
     }
   };
+}
+
+/**
+ * Update order (modify cart item quantity)
+ */
+export async function updateOrder(args, userId, context) {
+  try {
+    const { name, quantity, action } = args; // action: 'update', 'remove'
+    const cart = context.cart || [];
+
+    if (cart.length === 0) {
+      await sendMessage(userId, context.platform, "Your cart is empty! Nothing to update.");
+      return { reply: null, updatedContext: context };
+    }
+
+    // Find item by name (fuzzy match)
+    const normalizedName = name.toLowerCase();
+    const itemIndex = cart.findIndex(item => item.name.toLowerCase().includes(normalizedName));
+
+    if (itemIndex === -1) {
+      await sendMessage(userId, context.platform, `Sorry, I couldn't find "${name}" in your cart.`);
+      return { reply: null, updatedContext: context };
+    }
+
+    const item = cart[itemIndex];
+    let message = "";
+
+    if (action === 'remove' || quantity === 0) {
+      // Remove item
+      cart.splice(itemIndex, 1);
+      message = `✅ Removed ${item.name} from your cart.`;
+    } else {
+      // Update quantity
+      item.quantity = quantity;
+      message = `✅ Updated ${item.name} quantity to ${quantity}.`;
+    }
+
+    const total = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+    const itemCount = cart.reduce((sum, item) => sum + item.quantity, 0);
+
+    const buttons = [
+      buildWhatsAppButton('view_cart', 'View Cart 🛒'),
+      buildWhatsAppButton('proceed_checkout', 'Checkout ✅')
+    ];
+
+    await sendButtonMessage(
+      userId,
+      context.platform,
+      '🛒 Order Updated',
+      `${message}\n\nCurrent Cart: ${itemCount} items - ${formatPrice(total)}`,
+      'What else?',
+      buttons
+    );
+
+    return {
+      reply: null,
+      updatedContext: {
+        ...context,
+        cart,
+        lastAction: 'update_order'
+      }
+    };
+  } catch (error) {
+    logger.error('CartTools', 'Failed to update order', error.message);
+    await sendMessage(userId, context.platform, "Sorry, I couldn't update your order. Please try again.");
+    return { reply: null, updatedContext: context };
+  }
 }

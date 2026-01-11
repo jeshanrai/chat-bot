@@ -21,13 +21,14 @@ const toolRegistry = {
   [TOOL_NAMES.SHOW_FOOD_MENU]: menuTools.showFoodMenu,
   [TOOL_NAMES.SHOW_CATEGORY_ITEMS]: menuTools.showCategoryItems,
   [TOOL_NAMES.RECOMMEND_FOOD]: menuTools.recommendFood,
-  
+
   // Cart tools
   [TOOL_NAMES.ADD_TO_CART]: cartTools.addToCart,
   [TOOL_NAMES.ADD_ITEM_BY_NAME]: cartTools.addItemByName,
   [TOOL_NAMES.VIEW_CART]: cartTools.viewCart,
   [TOOL_NAMES.CLEAR_CART]: cartTools.clearCart,
-  
+  [TOOL_NAMES.UPDATE_ORDER]: cartTools.updateOrder,
+
   // Order tools
   [TOOL_NAMES.CONFIRM_ORDER]: orderTools.confirmOrder,
   [TOOL_NAMES.PROCESS_ORDER_RESPONSE]: orderTools.processOrderResponse,
@@ -36,7 +37,7 @@ const toolRegistry = {
   [TOOL_NAMES.SHOW_PAYMENT_OPTIONS]: orderTools.showPaymentOptions,
   [TOOL_NAMES.FINALIZE_ORDER]: orderTools.finalizeOrder,
   [TOOL_NAMES.SHOW_ORDER_HISTORY]: orderTools.showOrderHistory,
-  
+
   // Reservation tools
   [TOOL_NAMES.BOOK_TABLE]: reservationTools.bookTable,
   [TOOL_NAMES.CHECK_AVAILABILITY]: reservationTools.checkAvailability,
@@ -53,9 +54,9 @@ const toolRegistry = {
 export async function executeTool(toolCall, userId, context) {
   const toolName = toolCall.function?.name;
   const argsString = toolCall.function?.arguments || '{}';
-  
+
   logger.info('Executor', `Executing tool: ${toolName}`);
-  
+
   try {
     // Parse arguments
     let args;
@@ -65,10 +66,10 @@ export async function executeTool(toolCall, userId, context) {
       logger.error('Executor', `Failed to parse tool args: ${argsString}`);
       args = {};
     }
-    
+
     // Get tool function
     const toolFn = toolRegistry[toolName];
-    
+
     if (!toolFn) {
       logger.warn('Executor', `Unknown tool: ${toolName}`);
       return {
@@ -76,17 +77,17 @@ export async function executeTool(toolCall, userId, context) {
         updatedContext: context
       };
     }
-    
+
     // Execute tool
     const result = await toolFn(args, userId, context);
-    
-    logger.debug('Executor', `Tool ${toolName} completed`, { 
+
+    logger.debug('Executor', `Tool ${toolName} completed`, {
       hasReply: !!result.reply,
-      newStage: result.updatedContext?.stage 
+      newStage: result.updatedContext?.stage
     });
-    
+
     return result;
-    
+
   } catch (error) {
     logger.error('Executor', `Tool execution failed: ${toolName}`, error.message);
     return {
@@ -107,24 +108,24 @@ export async function executeTool(toolCall, userId, context) {
 export async function executeTools(toolCalls, userId, context, requestId) {
   let currentContext = context;
   let lastReply = null;
-  
+
   for (const toolCall of toolCalls) {
     const result = await executeTool(toolCall, userId, currentContext);
-    
+
     if (result.updatedContext) {
       currentContext = result.updatedContext;
     }
-    
+
     if (result.reply) {
       lastReply = result.reply;
     }
-    
+
     // Record result if tracking state
     if (requestId) {
       recordToolResult(requestId, toolCall.function?.name, result);
     }
   }
-  
+
   return {
     reply: lastReply,
     updatedContext: currentContext

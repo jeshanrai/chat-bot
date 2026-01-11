@@ -9,7 +9,7 @@ export const TOOL_NAMES = {
   SHOW_FOOD_MENU: 'show_food_menu',
   SHOW_CATEGORY_ITEMS: 'show_category_items',
   SHOW_MOMO_VARIETIES: 'show_momo_varieties',
-  
+
   // Cart tools
   ADD_TO_CART: 'add_to_cart',
   ADD_ITEM_BY_NAME: 'add_item_by_name',
@@ -17,7 +17,8 @@ export const TOOL_NAMES = {
   VIEW_CART: 'view_cart',
   UPDATE_CART_QUANTITY: 'update_cart_quantity',
   CLEAR_CART: 'clear_cart',
-  
+  UPDATE_ORDER: 'update_order',
+
   // Order tools
   CONFIRM_ORDER: 'confirm_order',
   PROCESS_ORDER_RESPONSE: 'process_order_response',
@@ -25,12 +26,12 @@ export const TOOL_NAMES = {
   PROVIDE_LOCATION: 'provide_location',
   SHOW_PAYMENT_OPTIONS: 'show_payment_options',
   SHOW_ORDER_HISTORY: 'show_order_history',
-  
+
   // Reservation tools (future)
   BOOK_TABLE: 'book_table',
   CHECK_AVAILABILITY: 'check_availability',
   CANCEL_RESERVATION: 'cancel_reservation',
-  
+
   // General tools
   SEND_TEXT_REPLY: 'send_text_reply',
   RECOMMEND_FOOD: 'recommend_food'
