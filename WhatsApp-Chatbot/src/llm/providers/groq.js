@@ -33,26 +33,31 @@ export function getGroqClient() {
 export async function callGroq(messages, tools = [], options = {}) {
   const client = getGroqClient();
   const config = llmConfig.groq;
-  
+
   try {
     const requestParams = {
       model: options.model || config.model,
       temperature: options.temperature ?? config.temperature,
       messages
     };
-    
+
     // Add tools if provided
     if (tools.length > 0) {
       requestParams.tools = tools;
       requestParams.tool_choice = options.toolChoice || config.toolChoice;
     }
-    
+
     logger.debug('Groq', `Calling model: ${requestParams.model}`);
-    
+
     const completion = await client.chat.completions.create(requestParams);
-    
+
+    const message = completion.choices[0].message;
+
     return {
-      message: completion.choices[0].message,
+      content: message.content,
+      tool_calls: message.tool_calls,
+      role: message.role,
+      message, // Keep for helpers that expect this structure
       usage: completion.usage,
       raw: completion
     };
@@ -73,6 +78,6 @@ export async function generateGroqResponse(systemPrompt, userMessage) {
     { role: 'system', content: systemPrompt },
     { role: 'user', content: userMessage }
   ]);
-  
+
   return result.message.content || '';
 }
