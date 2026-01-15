@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: whatsapp-chatbot
+    runtime: node
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false  # You'll set this manually in Render dashboard with your Neon connection string
+      - key: GROQ_API_KEY
+        sync: false
+      - key: WHATSAPP_TOKEN
+        sync: false
+      - key: WHATSAPP_VERIFY_TOKEN
+        sync: false
+      - key: WHATSAPP_PHONE_NUMBER_ID
+        sync: false
+      - key: MESSENGER_TOKEN
+        sync: false
+      - key: MESSENGER_VERIFY_TOKEN
+        sync: false
